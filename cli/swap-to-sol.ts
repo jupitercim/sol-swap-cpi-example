@@ -1,5 +1,4 @@
 import {
-  programAuthority,
   programWSOLAccount,
   provider,
   wallet,
@@ -7,7 +6,7 @@ import {
   jupiterProgramId,
   connection,
   getAdressLookupTableAccounts,
-  instructionDataToTransactionInstruction,
+  instructionDataToTransactionInstruction, programAuthorityAccount,
 } from "./helper";
 import { TOKEN_PROGRAM_ID, NATIVE_MINT } from "@solana/spl-token";
 import {
@@ -58,12 +57,14 @@ const swapToSol = async (
 ) => {
   let swapInstruction = instructionDataToTransactionInstruction(swapPayload);
 
+  console.log("programAuthorityAccount:"+programAuthorityAccount)
+
   const instructions = [
     ...computeBudgetPayloads.map(instructionDataToTransactionInstruction),
     await program.methods
       .swapToSol(swapInstruction.data)
-      .accounts({
-        programAuthority: programAuthority,
+      .accountsStrict({
+        programAuthority: programAuthorityAccount,
         programWsolAccount: programWSOLAccount,
         userAccount: wallet.publicKey,
         solMint: NATIVE_MINT,
@@ -89,11 +90,12 @@ const swapToSol = async (
   const transaction = new VersionedTransaction(messageV0);
 
   try {
-    await provider.simulate(transaction, [wallet.payer]);
+    // await provider.simulate(transaction, [wallet.payer]);
 
     const txID = await provider.sendAndConfirm(transaction, [wallet.payer]);
     console.log({ txID });
   } catch (e) {
+    console.log(e);
     console.log({ simulationResponse: e.simulationResponse });
   }
 };
@@ -108,7 +110,11 @@ const swapToSol = async (
   console.log({ quote });
 
   // Convert the Quote into a Swap instruction
-  const result = await getSwapIx(wallet.publicKey, programWSOLAccount, quote);
+  const result = await getSwapIx(programAuthorityAccount, programWSOLAccount, quote);
+
+  console.log({ result });
+
+  console.log(JSON.stringify(result));
 
   if ("error" in result) {
     console.log({ result });

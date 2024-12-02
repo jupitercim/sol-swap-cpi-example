@@ -5,7 +5,7 @@ use anchor_lang::{
 };
 use anchor_spl::token::{self, Mint, Token, TokenAccount};
 
-declare_id!("JUPDWNB9G9Hsg8PKynnP6DyWLsXVn4QnqMCqg6n4ZdM");
+declare_id!("ESzSND8xs8D6q7Q5wxMMViqsr8uVJ6mcHGRcLyXvxiE4");
 
 pub const AUTHORITY_SEED: &[u8] = b"authority";
 pub const WSOL_SEED: &[u8] = b"wsol";
@@ -36,8 +36,8 @@ pub mod swap_to_sol {
     use super::*;
 
     pub fn swap_to_sol(ctx: Context<SwapToSOL>, data: Vec<u8>) -> Result<()> {
-        let authority_bump = ctx.bumps.get("program_authority").unwrap().to_le_bytes();
-        let wsol_bump = ctx.bumps.get("program_wsol_account").unwrap().to_le_bytes();
+        let authority_bump = ctx.bumps.program_authority.to_le_bytes();
+        let wsol_bump = ctx.bumps.program_wsol_account.to_le_bytes();
 
         create_wsol_token_idempotent(
             ctx.accounts.program_authority.clone(),
@@ -53,7 +53,9 @@ pub mod swap_to_sol {
         swap_on_jupiter(
             ctx.remaining_accounts,
             ctx.accounts.jupiter_program.clone(),
+            ctx.accounts.program_authority.clone(),
             data,
+            &authority_bump,
         )?;
 
         let after_swap_lamports = ctx.accounts.program_wsol_account.lamports();
@@ -92,9 +94,11 @@ pub mod swap_to_sol {
 fn swap_on_jupiter<'info>(
     remaining_accounts: &[AccountInfo],
     jupiter_program: Program<'info, Jupiter>,
+    program_authority: SystemAccount<'info>,
     data: Vec<u8>,
+    authority_bump: &[u8],
 ) -> ProgramResult {
-    let accounts: Vec<AccountMeta> = remaining_accounts
+    let mut accounts: Vec<AccountMeta> = remaining_accounts
         .iter()
         .map(|acc| AccountMeta {
             pubkey: *acc.key,
@@ -103,10 +107,26 @@ fn swap_on_jupiter<'info>(
         })
         .collect();
 
-    let accounts_infos: Vec<AccountInfo> = remaining_accounts
+    for account in accounts.iter_mut() {
+        if account.pubkey == program_authority.key() {
+            account.is_signer = true
+
+        }
+    }
+
+    let mut accounts_infos: Vec<AccountInfo> = remaining_accounts
         .iter()
         .map(|acc| AccountInfo { ..acc.clone() })
         .collect();
+
+    for account in accounts_infos.iter_mut() {
+        if account.key == program_authority.key {
+            account.is_signer = true
+        }
+    }
+
+    let signer_seeds: &[&[&[u8]]] = &[&[AUTHORITY_SEED, authority_bump.as_ref()]];
+
 
     // TODO: Check the first 8 bytes. Only Jupiter Route CPI allowed.
 
@@ -117,7 +137,7 @@ fn swap_on_jupiter<'info>(
             data,
         },
         &accounts_infos,
-        &[],
+        signer_seeds,
     )
 }
 
