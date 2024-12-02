@@ -1,6 +1,9 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program, Wallet, AnchorProvider } from "@coral-xyz/anchor";
-import { IDL } from "../target/types/swap_to_sol";
+const IDL = require('../target/idl/swap_to_sol.json');
+import { SwapToSol } from "../target/types/swap_to_sol";
+process.env.RPC_URL='https://api.mainnet-beta.solana.com'
+
 import {
   PublicKey,
   Keypair,
@@ -15,20 +18,21 @@ import {
 } from "@solana/spl-token";
 
 export const programId = new PublicKey(
-  "JUPDWNB9G9Hsg8PKynnP6DyWLsXVn4QnqMCqg6n4ZdM"
+  "ESzSND8xs8D6q7Q5wxMMViqsr8uVJ6mcHGRcLyXvxiE4"
 );
 export const jupiterProgramId = new PublicKey(
   "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"
 );
 export const wallet = new Wallet(
-  Keypair.fromSecretKey(bs58.decode(process.env.KEYPAIR))
+    Keypair.fromSecretKey(Uint8Array.from(JSON.parse("todo".trim())))
 );
 export const connection = new Connection(process.env.RPC_URL);
 export const provider = new AnchorProvider(connection, wallet, {
   commitment: "processed",
 });
 anchor.setProvider(provider);
-export const program = new Program(IDL as anchor.Idl, programId, provider);
+// export const program = new Program(IDL as anchor.Idl, programId, provider);
+export const program = new anchor.Program<SwapToSol>(IDL, provider);
 
 const findProgramAuthority = (): PublicKey => {
   return PublicKey.findProgramAddressSync(
@@ -36,7 +40,9 @@ const findProgramAuthority = (): PublicKey => {
     programId
   )[0];
 };
-export const programAuthority = findProgramAuthority();
+export const programAuthorityAccount = findProgramAuthority();
+
+console.log(programAuthorityAccount)
 
 const findProgramWSOLAccount = (): PublicKey => {
   return PublicKey.findProgramAddressSync([Buffer.from("wsol")], programId)[0];
@@ -89,11 +95,15 @@ export const instructionDataToTransactionInstruction = (
     return null;
   }
 
+  // console.log("instructionPayload.accounts:"+JSON.stringify(instructionPayload.accounts))
+  // console.log("instructionPayload.data:"+JSON.stringify(instructionPayload.data))
+
+
   return new TransactionInstruction({
     programId: new PublicKey(instructionPayload.programId),
     keys: instructionPayload.accounts.map((key) => ({
       pubkey: new PublicKey(key.pubkey),
-      isSigner: key.isSigner,
+      isSigner: false,
       isWritable: key.isWritable,
     })),
     data: Buffer.from(instructionPayload.data, "base64"),
